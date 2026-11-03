@@ -1,0 +1,18 @@
+# Only the ingress controller may reach the API port; only Prometheus may scrape metrics.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-service
+spec:
+  podSelector:
+    matchLabels: { app: auth-service }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports: [{ port: 8080 }]
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring } # CHANGE ME if different
+      ports: [{ port: 9090 }]

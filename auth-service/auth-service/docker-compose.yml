@@ -1,0 +1,39 @@
+# Local development: DynamoDB Local + table bootstrap + the service.
+#   docker compose up --build
+#   curl localhost:8080/readyz
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    ports: ["8000:8000"]
+
+  create-table:
+    image: amazon/aws-cli:latest
+    depends_on: [dynamodb]
+    environment:
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_REGION: us-east-1
+      DYNAMODB_TABLE: auth
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+    volumes: ["./scripts:/scripts:ro"]
+    entrypoint: ["/bin/sh", "/scripts/create-table.sh"]
+
+  auth-service:
+    build: .
+    depends_on:
+      create-table:
+        condition: service_completed_successfully
+    ports: ["8080:8080", "9090:9090"]
+    environment:
+      STORAGE_BACKEND: dynamodb
+      DYNAMODB_TABLE: auth
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_REGION: us-east-1
+      JWT_SECRET: local-dev-secret-change-me-at-least-32-bytes
+      JWT_ISSUER: yiemn-auth
+      LOG_FORMAT: pretty
+      RUST_LOG: info,auth_service=debug
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
