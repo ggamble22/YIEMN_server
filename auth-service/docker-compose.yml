@@ -22,7 +22,13 @@ services:
     entrypoint: ["/bin/sh", "-c", "tr -d '\\r' < /scripts/create-table.sh | /bin/sh"]
 
   auth-service:
-    build: .
+    build:
+      context: .
+      args:
+        # Which branch/tag/commit of the GitHub repo to build. Override with
+        #   GIT_REF=my-branch docker compose up --build   (bash)
+        #   $env:GIT_REF="my-branch"; docker compose up --build   (PowerShell)
+        GIT_REF: ${GIT_REF:-main}
     depends_on:
       create-table:
         condition: service_completed_successfully

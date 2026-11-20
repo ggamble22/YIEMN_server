@@ -15,6 +15,16 @@ make up
 make test
 ```
 
+The Docker image builds from the code in the GitHub repo (`ggamble22/YIEMN_server`), not your local files. It uses `main` by default. To build another branch, tag or commit, set `GIT_REF`:
+
+```bash
+GIT_REF=my-branch docker compose up --build                       # bash
+$env:GIT_REF="my-branch"; docker compose up --build              # PowerShell
+docker build -t auth-service --build-arg GIT_REF=my-branch .      # image only
+```
+
+Local changes must be pushed to GitHub before a Docker build sees them. For a quick local loop, use `cargo run` / `cargo test` instead.
+
 ```bash
 curl -s localhost:8080/v1/auth/signup -H 'content-type: application/json' \
   -d '{"email":"ada@example.com","password":"correct horse battery","display_name":"Ada","role":"student"}'
