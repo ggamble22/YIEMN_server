@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-service
+data:
+  STORAGE_BACKEND: dynamodb
+  DYNAMODB_TABLE: auth
+  AWS_REGION: us-east-1
+  JWT_ISSUER: yiemn-auth
+  ACCESS_TOKEN_TTL_SECS: "900"
+  REFRESH_TOKEN_TTL_SECS: "2592000"
+  RATE_LIMIT_PER_MINUTE: "30"
+  # The ingress controller is the single trusted hop that appends the client IP.
+  TRUST_FORWARDED_FOR: "true"
+  CORS_ALLOWED_ORIGINS: https://app.example.com # CHANGE ME
+  # USER_ICONS: fox,owl,panda,rocket  # optional; defaults to the built-in set
+  # Photo icons
+  PHOTO_STORAGE: s3
+  PHOTO_BUCKET: yiemn-user-photos # CHANGE ME (terraform output photo_bucket)
+  PHOTO_MODERATION: rekognition
+  PHOTO_MODERATION_MIN_CONFIDENCE: "60"
+  PHOTO_PUBLIC_BASE_URL: https://cdn.example.com/v1/photos # CHANGE ME (CloudFront in front of /v1/photos)
+  PHOTO_MAX_BYTES: "5242880"
+  # Roles allowed to upload photos; others can still choose preset icons.
+  PHOTO_ICON_ROLES: student,parent,educator,admin
+  REQUEST_TIMEOUT_SECS: "10"
+  LOG_FORMAT: json
+  RUST_LOG: info
