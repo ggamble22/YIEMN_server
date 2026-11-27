@@ -1,0 +1,27 @@
+# Assumes ingress-nginx + cert-manager. Adjust for AWS Load Balancer Controller if preferred.
+# Only /v1, /healthz and /readyz are exposed; the metrics port never is.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: auth-service
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt # CHANGE ME
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Edge rate limit (global per ingress pod) complements the app's per-pod limiter.
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
+    # Photo uploads (PUT /v1/users/me/photo) need up to 5 MiB; the app itself
+    # still caps every other endpoint at 64 KiB.
+    nginx.ingress.kubernetes.io/proxy-body-size: 6m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [auth.example.com] # CHANGE ME
+      secretName: auth-service-tls
+  rules:
+    - host: auth.example.com # CHANGE ME
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend: { service: { name: auth-service, port: { name: http } } }

@@ -1,0 +1,62 @@
+[package]
+name = "auth-service"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "Horizontally scalable user accounts + authentication API (axum + DynamoDB)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "auth-service"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+argon2 = "0.5"
+async-trait = "0.1"
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-dynamodb = "1"
+aws-sdk-rekognition = "1"
+aws-sdk-s3 = "1"
+axum = "0.8"
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+dashmap = "6"
+hex = "0.4"
+# Pure-Rust decoders only; 0.25.4+ for EXIF orientation support.
+image = { version = "0.25.4", default-features = false, features = ["jpeg", "png", "webp"] }
+jsonwebtoken = "9"
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.16", default-features = false }
+rand = "0.8"
+# Self-signed certificates for local HTTPS (TLS_SELF_SIGNED=true).
+rcgen = "0.13"
+rustls = "0.23"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+subtle = "2"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "request-id", "timeout", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+
+# Argon2 is painfully slow unoptimised; optimise dependencies even in dev/test builds.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
