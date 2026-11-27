@@ -1,7 +1,13 @@
-.PHONY: run run-memory test lint fmt docker up down
+.PHONY: run run-memory run-https test lint fmt docker up down
 
 run-memory: ## Run with no dependencies (in-memory store)
 	STORAGE_BACKEND=memory PHOTO_STORAGE=memory PHOTO_MODERATION=off LOG_FORMAT=pretty \
+	JWT_SECRET=local-dev-secret-change-me-at-least-32-bytes \
+	cargo run
+
+run-https: ## Like run-memory, but HTTPS on https://localhost:8443 (self-signed)
+	STORAGE_BACKEND=memory PHOTO_STORAGE=memory PHOTO_MODERATION=off LOG_FORMAT=pretty \
+	TLS_SELF_SIGNED=true \
 	JWT_SECRET=local-dev-secret-change-me-at-least-32-bytes \
 	cargo run
 

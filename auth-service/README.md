@@ -9,6 +9,8 @@ Built to scale horizontally to millions of users: the service is stateless, ever
 ```bash
 # Zero dependencies (in-memory store):
 make run-memory
+# Same, over HTTPS on https://localhost:8443 (self-signed):
+make run-https
 # Full stack with DynamoDB Local:
 make up
 # Tests (no AWS needed):
@@ -22,6 +24,8 @@ GIT_REF=my-branch docker compose up --build                       # bash
 $env:GIT_REF="my-branch"; docker compose up --build              # PowerShell
 docker build -t auth-service --build-arg GIT_REF=my-branch .      # image only
 ```
+
+With Docker Compose the service runs over **HTTPS** at `https://localhost` (port 443, using a self-signed certificate made at startup, so browsers and `curl` will warn; use `curl -k`). See [HTTPS](#https).
 
 Local changes must be pushed to GitHub before a Docker build sees them. For a quick local loop, use `cargo run` / `cargo test` instead.
 
@@ -145,8 +149,27 @@ Handlers only see the `Repo`, `PhotoStore` and `Moderator` traits, so the storag
 | `PHOTO_MODERATION_MIN_CONFIDENCE` | `60` | Rekognition label confidence (0–100) that rejects a photo. Lower = stricter |
 | `PHOTO_ICON_ROLES` | all roles | Who may upload photos, e.g. `parent,educator`. Everyone can still use presets |
 | `MAX_CONCURRENT_PHOTO_JOBS` | `2` | Image decodes per pod (each up to ~100 MiB) |
-| `BIND_ADDR` / `METRICS_ADDR` | `0.0.0.0:8080` / `:9090` | |
+| `TLS_CERT_PATH` / `TLS_KEY_PATH` | – | Serve HTTPS with this certificate and key (PEM). See [HTTPS](#https) |
+| `TLS_SELF_SIGNED` | `false` | Generate a certificate at startup. Local development only |
+| `TLS_SELF_SIGNED_HOSTS` | `localhost,127.0.0.1` | Names the self-signed certificate is valid for |
+| `BIND_ADDR` / `METRICS_ADDR` | `0.0.0.0:8443` with TLS, else `0.0.0.0:8080` / `:9090` | |
 | `LOG_FORMAT` | `json` | `pretty` for local |
+
+## HTTPS
+
+The server can terminate TLS itself, on port **8443** by default:
+
+| Setting | Result |
+|---|---|
+| `TLS_CERT_PATH` + `TLS_KEY_PATH` | HTTPS with your certificate (PEM chain + private key, e.g. Let's Encrypt or a mounted Kubernetes TLS secret) |
+| `TLS_SELF_SIGNED=true` | HTTPS with a certificate generated at startup for `TLS_SELF_SIGNED_HOSTS` (default `localhost,127.0.0.1`). Local development only |
+| neither | Plain HTTP on 8080 |
+
+It listens on 8443 rather than 443 because the container runs as a non-root user, and ports below 1024 need extra privileges. Map 443 to it instead: Docker Compose publishes `443:8443`, so `https://localhost` works.
+
+**In Kubernetes, TLS is handled by the ingress** (cert-manager certificate on `auth.example.com`), and pods stay on plain HTTP inside the cluster. To encrypt that hop too, mount a TLS secret, set `TLS_CERT_PATH`/`TLS_KEY_PATH`, switch the probes to `scheme: HTTPS` on port 8443, and add `nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"` to the ingress.
+
+The metrics port (9090) stays plain HTTP; it's only reachable from inside the cluster.
 
 ## Deploying
 

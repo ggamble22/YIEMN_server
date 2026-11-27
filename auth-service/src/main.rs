@@ -11,6 +11,7 @@ use auth_service::{
     observability,
     repo::{Repo, dynamo::DynamoRepo, memory::MemoryRepo},
     state::AppState,
+    tls,
 };
 use axum::{Router, routing::get};
 use tokio::net::TcpListener;
@@ -105,15 +106,44 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let listener = TcpListener::bind(config.bind_addr).await?;
-    tracing::info!(addr = %config.bind_addr, metrics = %config.metrics_addr, "auth-service listening");
+    let service = app(state).into_make_service_with_connect_info::<SocketAddr>();
 
-    axum::serve(
-        listener,
-        app(state).into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
+    match tls::server_config(&config.tls).await? {
+        Some(tls_config) => {
+            if matches!(config.tls, tls::TlsMode::SelfSigned { .. }) {
+                tracing::warn!(
+                    "serving HTTPS with a SELF-SIGNED certificate: for local development only"
+                );
+            }
+            tracing::info!(
+                addr = %config.bind_addr,
+                metrics = %config.metrics_addr,
+                "auth-service listening (HTTPS)"
+            );
+            let handle = axum_server::Handle::new();
+            let shutdown = handle.clone();
+            tokio::spawn(async move {
+                shutdown_signal().await;
+                // Let in-flight requests finish, within Kubernetes' grace period.
+                shutdown.graceful_shutdown(Some(Duration::from_secs(20)));
+            });
+            axum_server::bind_rustls(config.bind_addr, tls_config)
+                .handle(handle)
+                .serve(service)
+                .await?;
+        }
+        None => {
+            let listener = TcpListener::bind(config.bind_addr).await?;
+            tracing::info!(
+                addr = %config.bind_addr,
+                metrics = %config.metrics_addr,
+                "auth-service listening (HTTP)"
+            );
+            axum::serve(listener, service)
+                .with_graceful_shutdown(shutdown_signal())
+                .await?;
+        }
+    }
 
     tracing::info!("shut down cleanly");
     Ok(())

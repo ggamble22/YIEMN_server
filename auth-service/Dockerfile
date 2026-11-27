@@ -34,5 +34,6 @@ RUN cargo build --release --bin auth-service
 FROM gcr.io/distroless/cc-debian12:nonroot
 COPY --from=builder /app/target/release/auth-service /usr/local/bin/auth-service
 USER nonroot:nonroot
-EXPOSE 8080 9090
+# 8443 = HTTPS (when TLS is configured), 8080 = plain HTTP, 9090 = metrics
+EXPOSE 8443 8080 9090
 ENTRYPOINT ["/usr/local/bin/auth-service"]

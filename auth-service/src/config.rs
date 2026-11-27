@@ -6,7 +6,7 @@ use std::{net::SocketAddr, str::FromStr, time::Duration};
 use anyhow::{Context, bail};
 use axum::http::HeaderValue;
 
-use crate::models::Role;
+use crate::{models::Role, tls::TlsMode};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StorageBackend {
@@ -38,7 +38,10 @@ pub enum LogFormat {
 /// Service configuration. Deliberately not `Debug`: it holds the JWT secret.
 #[derive(Clone)]
 pub struct Config {
+    /// Defaults to `0.0.0.0:8443` when TLS is on, `0.0.0.0:8080` when off.
     pub bind_addr: SocketAddr,
+    /// HTTPS settings (see `crate::tls`).
+    pub tls: TlsMode,
     pub metrics_addr: SocketAddr,
     pub storage: StorageBackend,
     pub dynamodb_table: String,
@@ -169,12 +172,41 @@ impl Config {
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
+        let tls = match (
+            std::env::var("TLS_CERT_PATH")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            std::env::var("TLS_KEY_PATH").ok().filter(|s| !s.is_empty()),
+        ) {
+            (Some(cert), Some(key)) => TlsMode::Files {
+                cert: cert.into(),
+                key: key.into(),
+            },
+            (Some(_), None) | (None, Some(_)) => {
+                bail!("set both TLS_CERT_PATH and TLS_KEY_PATH, or neither")
+            }
+            (None, None) if parse_env::<bool>("TLS_SELF_SIGNED", "false")? => TlsMode::SelfSigned {
+                hosts: env_or("TLS_SELF_SIGNED_HOSTS", "localhost,127.0.0.1")
+                    .split(',')
+                    .map(|h| h.trim().to_string())
+                    .filter(|h| !h.is_empty())
+                    .collect(),
+            },
+            (None, None) => TlsMode::Off,
+        };
+        let default_bind = if tls.is_enabled() {
+            "0.0.0.0:8443"
+        } else {
+            "0.0.0.0:8080"
+        };
+
         let default_hashes = std::thread::available_parallelism()
             .map(|n| n.get() * 2)
             .unwrap_or(4);
 
         Ok(Self {
-            bind_addr: parse_env("BIND_ADDR", "0.0.0.0:8080")?,
+            bind_addr: parse_env("BIND_ADDR", default_bind)?,
+            tls,
             metrics_addr: parse_env("METRICS_ADDR", "0.0.0.0:9090")?,
             storage,
             dynamodb_table: env_or("DYNAMODB_TABLE", "auth"),
@@ -210,6 +242,7 @@ impl Config {
     pub fn test_default() -> Self {
         Self {
             bind_addr: "127.0.0.1:0".parse().expect("valid addr"),
+            tls: TlsMode::Off,
             metrics_addr: "127.0.0.1:0".parse().expect("valid addr"),
             storage: StorageBackend::Memory,
             dynamodb_table: "auth-test".into(),

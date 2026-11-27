@@ -14,6 +14,7 @@ pub mod observability;
 pub mod repo;
 pub mod routes;
 pub mod state;
+pub mod tls;
 pub mod validate;
 
 use axum::{
